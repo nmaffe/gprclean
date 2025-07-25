@@ -279,6 +279,8 @@ expected_columns = {
 # List to store dataframes
 bedmap_list_dataframes = []
 
+# todo: add RNRF_2006_KV1-area_AIR_BM2.csv RNRF_2006_Komsom-Vostok_AIR_BM3.csv
+# todo: NASA_2004_ICEBRIDGE_AIR_BM2.csv NASA_2004_ICEBRIDGE_AIR_BM2.csv
 # Files not to be imported because they have equivalent BedMap3 entries
 bedmap_files_not_to_import = ['BAS_2010_IMAFI_AIR_BM2.csv', 'INGV_1997_ITASE_AIR_BM2.csv',
                               'NIPR_1999_JARE40_GRN_BM2.csv', 'NIPR_2007_JARE49_GRN_BM2.csv',
