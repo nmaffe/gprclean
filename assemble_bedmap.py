@@ -31,7 +31,6 @@ def extract_time_coverage(filename):
     assert 1000 <= end_year <= 9999, f"Invalid end_year: {end_year}"
     return start_year, end_year
 
-
 def remove_close_points_by_eps(df, check_vars=(None, None), rel_std_thresh=0.10, epsilon=None):
     """
     Remove duplicates based on proximity in specified coordinates (lat/lon or east/north),
@@ -279,15 +278,14 @@ expected_columns = {
 # List to store dataframes
 bedmap_list_dataframes = []
 
-# todo: add RNRF_2006_KV1-area_AIR_BM2.csv RNRF_2006_Komsom-Vostok_AIR_BM3.csv
-# todo: NASA_2004_ICEBRIDGE_AIR_BM2.csv NASA_2004_ICEBRIDGE_AIR_BM2.csv
 # Files not to be imported because they have equivalent BedMap3 entries
 bedmap_files_not_to_import = ['BAS_2010_IMAFI_AIR_BM2.csv', 'INGV_1997_ITASE_AIR_BM2.csv',
                               'NIPR_1999_JARE40_GRN_BM2.csv', 'NIPR_2007_JARE49_GRN_BM2.csv',
                               'NIPR_2007_JASE_GRN_BM2.csv', 'RNRF_2003_48RAEap5_AIR_BM2.csv',
                               'RNRF_2004_49RAEap5_AIR_BM2.csv', 'RNRF_2005_50RAEap5_AIR_BM2.csv',
-                              'RNRF_2006_51RAEap5_AIR_BM2.csv', 'RNRF_2007_52RAEap5_AIR_BM2.csv',
-                              'RNRF_2007_Mirny-Vostok_AIR_BM2.csv', 'RNRF_2008_53RAEap5_AIR_BM2.csv'
+                              'RNRF_2006_51RAEap5_AIR_BM2.csv', 'RNRF_2006_KV1-area_AIR_BM2.csv',
+                              'RNRF_2007_52RAEap5_AIR_BM2.csv', 'RNRF_2007_Mirny-Vostok_AIR_BM2.csv',
+                              'RNRF_2008_53RAEap5_AIR_BM2.csv', 'UTIG_2008_ICECAP_AIR_BM2.csv',
                               ]
 
 for i, file in tqdm(enumerate(files_bedmap), total=total_files, leave=True):
