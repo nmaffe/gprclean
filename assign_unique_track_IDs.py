@@ -12,6 +12,25 @@ from pyproj import Proj, Transformer, Geod
 import hvplot.pandas
 import panel as pn
 
+def plot_pn(df, x, y, c):
+    pn.extension()
+
+    scatter = df.hvplot.scatter(
+        x=x,
+        y=y,
+        c=c,  # 'track_id' 'ice_thickness'
+        cmap='jet',
+        rasterize=True,
+        width=600,
+        height=600,
+        title='title',  # Tracks by ID (east vs north)
+        colorbar=True,
+        tools=['hover'],
+        hover_cols=[c]  # track_id
+    )
+    # Launch interactive plot in browser
+    pn.panel(scatter).show()
+
 pd.set_option('display.max_columns', None)
 
 # 'along_track_distance (m)': 'atd' ANY USE ?
@@ -88,6 +107,16 @@ def assign_point_id_segments(df, threshold_jump=500):
         idx_range = df.loc[start_idx:end_idx - 1].index
         segment_labels.loc[idx_range] = seg_id
 
+    # plot
+    if_plot = False
+    if if_plot:
+        result_df_for_plot = pd.DataFrame({
+            'east': df['east'],
+            'north': df['north'],
+            'point_id': segment_labels
+        })
+        plot_pn(df=result_df_for_plot, x='east', y='north', c='point_id')
+
     return segment_labels
 
 def assign_flight_id_segments(df, max_unique_fraction=0.1):
@@ -128,9 +157,19 @@ def assign_flight_id_segments(df, max_unique_fraction=0.1):
     # Map each unique flight_id to an integer ID
     unique_ids = flight_ids.unique()
     id_map = {fid: i for i, fid in enumerate(unique_ids)}
-    track_ids = flight_ids.map(id_map).astype("float")
+    flight_ids = flight_ids.map(id_map).astype("float")
 
-    return track_ids
+    # plot
+    if_plot = False
+    if if_plot:
+        result_df_for_plot = pd.DataFrame({
+            'east': df['east'],
+            'north': df['north'],
+            'flight_id': flight_ids
+        })
+        plot_pn(df=result_df_for_plot, x='east', y='north', c='flight_id')
+
+    return flight_ids
 
 def assign_spatial_id_segments(df, threshold_dist=5000):
     """
@@ -238,7 +277,7 @@ def compute_segmentation_index(df):
 
 # The goal is to assign to each point a Track ID
 t0 = time.time()
-bedmap = pd.read_parquet('/media/maffe/sturellone/GPRCleanup/bedmap_raw_data.parquet', engine='fastparquet')
+bedmap = pd.read_parquet('/media/maffe/sturellone/gprclean/bedmap_raw_data.parquet', engine='fastparquet')
 print(f'Parquet loaded in {time.time()-t0:.1f}')
 
 file_nos = bedmap['file_no'].unique().tolist()
@@ -253,9 +292,10 @@ running_id_track_counter = 0
 # Loop over the 151 files
 for n, file_name in enumerate(file_names):
 
-    #if n == 10:
+    #if n == 1:
     #    break
 
+    #file_name = 'CRESIS_2009_Thwaites_AIR_BM3.csv'
     #file_name = 'BAS_2009_FERRIGNO_GRN_BM2.csv'
     #file_name='BAS_2001_MAMOG_AIR_BM2.csv'
     #file_name='BAS_2011_Adelaide_AIR_BM3.csv'
@@ -267,6 +307,7 @@ for n, file_name in enumerate(file_names):
     #file_name = 'BAS_2001_Bailey-Slessor_AIR_BM2.csv'
     #file_name='STANFORD_1971_SPRI-NSF-TUD_AIR_BM3.csv' # zig-zag makes angular bananas
     #file_name = 'NIPR_1999_JARE40_GRN_BM3.csv'
+    #file_name = 'BAS_2015_FISS_AIR_BM3.csv'
 
     bedmap_file = bedmap.loc[bedmap['file'] == file_name].copy()
 
@@ -317,8 +358,11 @@ for n, file_name in enumerate(file_names):
 
     print(f"{bedmap_file['file_no'].iloc[0]} {file_name} n={len(bedmap_file)} - flight_id | point_id | timestamp | spatial | angular: {n_tracks_flight} | "
           f"{n_tracks_point} | {n_tracks_timestamp} | {n_tracks_spatial} | {n_tracks_angular} | tracks")
+
     seg_index = compute_segmentation_index(bedmap_file)
-    #print(f"Segmentation index (fraction of tracked points): {seg_index:.4f}")
+    print(f"Segmentation index (fraction of tracked points): {seg_index:.4f}")
+
+    #plot_pn(df=bedmap_file, x='east', y='north', c='flight_id')
 
     plot = False
     if plot:
@@ -366,29 +410,14 @@ print(f"{bedmap['track_method'].value_counts()}")
 print(f"Track min {bedmap['track_id'].min()} Track max {bedmap['track_id'].max()}")
 
 # --------- SAVE ---------
-save = True
+save = False
 if save:
-    bedmap.to_parquet("/media/maffe/sturellone/GPRCleanup/bedmap_track_ids.parquet", index=False)
+    bedmap.to_parquet("/media/maffe/sturellone/gprclean/bedmap_track_ids.parquet", index=False)
     print('SAVED.')
 
-# --------- PLOT ---------
-pn.extension()
 
-scatter = bedmap.hvplot.scatter(
-    x='east',
-    y='north',
-    c='track_id',
-    cmap='jet',
-    rasterize=True,
-    width=600,
-    height=600,
-    title='Tracks by ID (east vs north)',
-    colorbar=True,
-    tools=['hover'],
-    hover_cols=['track_id']
-)
-# Launch interactive plot in browser
-pn.panel(scatter).show()
+# --------- PLOT WHOLE FINAL ---------
+#plot_pn(df=bedmap, x='east', y='north', c='track_id')
 
 
 

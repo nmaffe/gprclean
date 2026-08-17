@@ -20,6 +20,9 @@ Bedmap data: https://essd.copernicus.org/articles/15/2695/2023/
 # - Lines: https://antarctica.github.io/PDC_GeophysicsBook/BEDMAP/Create_ShapeLines_for_BEDMAP3.html
 '''
 
+# todo: reorder_index_optimized would need to be optimized. The result applied to CRESIS_2009_Thwaites_AIR_BM3.csv
+#  is not really great.
+
 def extract_time_coverage(filename):
     with open(filename, 'r', encoding='utf-8') as f:
         header_lines = [next(f).strip() for _ in range(18)]
@@ -189,7 +192,9 @@ def reorder_index_by_precomputed_neighbors(df, neighbors_k=1000, start_idx=0):
 
     # Build KDTree and precompute neighbors
     tree = cKDTree(coords)
+    # This is a precomputation step. For every single point in your dataset, it finds the nearest 1,000 neighbors immediately.
     dists, indices = tree.query(coords, k=neighbors_k + 1)
+    # We skip the first column because the closest neighbor to any point is always itself (distance = 0).
     neighbors = indices[:, 1:]  # skip self (first column)
 
     visited = np.zeros(n_points, dtype=bool)
@@ -212,7 +217,7 @@ def reorder_index_by_precomputed_neighbors(df, neighbors_k=1000, start_idx=0):
                 next_idx = n_idx
                 break
 
-        # Step 2: global fallback if needed
+        # Step 2: Global Fallback (The "Gap" Handler) if needed
         if next_idx is None:
             if not unvisited_indices:
                 break  # All points visited
@@ -226,12 +231,12 @@ def reorder_index_by_precomputed_neighbors(df, neighbors_k=1000, start_idx=0):
 
             for candidate in nearest_idx:
                 if not visited[candidate]:
-                    next_idx = candidate
+                    next_idx = int(candidate)
                     break
 
             # Final guaranteed fallback: take any unvisited point
             if next_idx is None:
-                next_idx = unvisited_indices.pop()
+                next_idx = int(unvisited_indices.pop())
 
         # Update tracking
         visited[next_idx] = True
@@ -244,6 +249,56 @@ def reorder_index_by_precomputed_neighbors(df, neighbors_k=1000, start_idx=0):
 
     assert len(path) == n_points, f"Only {len(path)} of {n_points} points visited"
 
+    return df.iloc[path].reset_index(drop=True)
+
+def reorder_index_optimized(df, step_size=50000):
+    coords = np.column_stack((df['east'].values, df['north'].values))
+    n_points = len(df)
+
+    visited = np.zeros(n_points, dtype=bool)
+    path = []
+    current_idx = 0  # Starting point
+
+    path.append(current_idx)
+    visited[current_idx] = True
+
+    # We build the tree once
+    tree = cKDTree(coords)
+
+    pbar = tqdm(total=n_points, desc="Reordering points")
+
+    while len(path) < n_points:
+        # Step 1: Query the 'next few' closest points
+        # We query 20 instead of 1000 to keep it fast per iteration
+        dists, indices = tree.query(coords[current_idx], k=20)
+
+        next_idx = None
+        for idx in indices:
+            if not visited[idx]:
+                next_idx = idx
+                break
+
+        # Step 2: If local search fails, find the nearest UNVISITED point
+        if next_idx is None:
+            # OPTIMIZATION: Instead of querying the whole tree,
+            # find the nearest point from the remaining unvisited set.
+            # To keep it fast, we only do this every time the 'chain' breaks.
+            unvisited_list = np.where(~visited)[0]
+            if len(unvisited_list) == 0: break
+
+            # Use a smaller 'local' tree of unvisited points to find the next jump
+            # We only use a subset if the list is huge to save time
+            search_indices = unvisited_list[::max(1, len(unvisited_list) // step_size)]
+            temp_tree = cKDTree(coords[search_indices])
+            _, nearest_temp_idx = temp_tree.query(coords[current_idx], k=1)
+            next_idx = search_indices[nearest_temp_idx]
+
+        path.append(next_idx)
+        visited[next_idx] = True
+        current_idx = next_idx
+        pbar.update(1)
+
+    pbar.close()
     return df.iloc[path].reset_index(drop=True)
 
 bedmap_folder = f"/media/maffe/nvme/polar_ice_thickness_data/bedmap"
@@ -291,7 +346,11 @@ bedmap_files_not_to_import = ['BAS_2010_IMAFI_AIR_BM2.csv', 'INGV_1997_ITASE_AIR
 for i, file in tqdm(enumerate(files_bedmap), total=total_files, leave=True):
 
     #file = '/media/maffe/nvme/polar_ice_thickness_data/bedmap/bedmap/bedmap3/BAS_2010_IMAFI_AIR_BM3.csv'
+    #file = '/media/maffe/nvme/polar_ice_thickness_data/bedmap/bedmap/bedmap3/CRESIS_2009_Thwaites_AIR_BM3.csv'
+    #file = '/media/maffe/nvme/polar_ice_thickness_data/bedmap/bedmap/bedmap2/BEDMAP2_-_Ice_thickness__bed_and_surface_elevation_for_Antarctica_-_standardised_data_points/BEDMAP2 - Ice thickness, bed and surface elevation for Antarctica - standardised data points/BGR_1999_GANOVEX-VIII-Mertz_AIR_BM2.csv'
+    #file = '/media/maffe/nvme/polar_ice_thickness_data/bedmap/bedmap/bedmap2/BEDMAP2_-_Ice_thickness__bed_and_surface_elevation_for_Antarctica_-_standardised_data_points/BEDMAP2 - Ice thickness, bed and surface elevation for Antarctica - standardised data points/RNRF_2008_Vostok-Subglacial-Lake_AIR_BM2.csv'
     #if i==1: break
+
     filename = file.rsplit('/', 1)[-1]
     #print(filename)
 
@@ -304,15 +363,6 @@ for i, file in tqdm(enumerate(files_bedmap), total=total_files, leave=True):
 
     # Read the CSV file, skipping the header
     df_file_csv = pd.read_csv(file, skiprows=18, low_memory=False)
-
-    # Debug plot
-    #fig, ax = plt.subplots()
-    #df_file_csv = df_file_csv.loc[df_file_csv['land_ice_thickness (m)']>0]
-    #print(len(df_file_csv))
-    #s = ax.scatter(x=df_file_csv['longitude (degree_east)'], y=df_file_csv['latitude (degree_north)'],
-    #           c=df_file_csv['land_ice_thickness (m)'], cmap='jet', s=2)
-    #cb = plt.colorbar(s)
-    #plt.show()
 
     # Check if expected columns exist
     missing_columns = [col for col in expected_columns.keys() if col not in df_file_csv.columns]
@@ -390,15 +440,51 @@ for i, file in tqdm(enumerate(files_bedmap), total=total_files, leave=True):
     df_file_csv['east'] = gdf_file_csv.geometry.x.values
     df_file_csv['north'] = gdf_file_csv.geometry.y.values
 
-    # todo: check CRESIS_2009_Thwaites_AIR_BM3.csv i suspect i need to reindex that ? very weird looking
+
+    # Debug plot
+    debug_plot = False
+    if debug_plot:
+        df_file_csv = df_file_csv.loc[df_file_csv['ice_thickness'] > 0]
+        #mask = (df_file_csv['lon'] >= -108.5) & (df_file_csv['lon'] <= -108.46) & \
+        #       (df_file_csv['lat'] >= -77.233) & (df_file_csv['lat'] <= -77.22)
+        #df_subset = df_file_csv[mask]
+        #print(len(df_file_csv))
+        fig, ax = plt.subplots()
+        s = ax.scatter(x=df_file_csv['east'], y=df_file_csv['north'],
+                   c=df_file_csv.index, cmap='jet', s=2) # df_file_csv['land_ice_thickness (m)']
+
+        for idx, row in df_file_csv.iterrows():
+            continue
+            ax.annotate(str(idx),
+                        (row['east'], row['north']),
+                        textcoords="offset points",  # how to position the text
+                        xytext=(5, 5),  # distance from text to points (x,y)
+                        ha='left',  # horizontal alignment
+                        fontsize=8)
+        cb = plt.colorbar(s)
+        plt.show()
+
     files_to_reindex = ['BGR_1999_GANOVEX-VIII-Mertz_AIR_BM2.csv', 'RNRF_2008_Vostok-Subglacial-Lake_AIR_BM2.csv',
                         'BGR_1999_GANOVEX-VIII-Matusevich_AIR_BM2.csv', 'NIPR_2018_JARE60_GRN_BM3.csv',
-                        'NIPR_2007_JARE49_GRN_BM3.csv', 'NIPR_2017_JARE59_GRN_BM3.csv', 'BEDMAP1_1966-2000_AIR_BM1.csv']
+                        'NIPR_2007_JARE49_GRN_BM3.csv', 'NIPR_2017_JARE59_GRN_BM3.csv', 'BEDMAP1_1966-2000_AIR_BM1.csv',
+                        'CRESIS_2009_Thwaites_AIR_BM3.csv']
 
     # Reindex some files
     if filename in files_to_reindex:
         print(f'Reindexing {filename}')
-        df_file_csv = reorder_index_by_precomputed_neighbors(df_file_csv)
+        #df_file_csv = reorder_index_by_precomputed_neighbors(df_file_csv)
+        df_file_csv = reorder_index_optimized(df_file_csv)
+
+
+    ifplot = False
+    if ifplot:
+        fig, ax = plt.subplots()
+        df_file_csv = df_file_csv.loc[df_file_csv['ice_thickness'] > 0]
+        print(len(df_file_csv))
+        s = ax.scatter(x=df_file_csv['east'], y=df_file_csv['north'],
+                       c=df_file_csv.index, cmap='jet', s=2)
+        cb = plt.colorbar(s)
+        plt.show()
 
     # Remove columns
     df_file_csv.drop(columns=['east', 'north'], inplace=True)
@@ -474,10 +560,12 @@ assert not bedmap_gdf.duplicated(subset=['east', 'north']).any(), "There are dup
 # Convert to a pandas DataFrame and drop the 'geometry' column
 bedmap = pd.DataFrame(bedmap_gdf.drop(columns='geometry'))
 
+#print(f"List of columns: {bedmap.info}")
+
 # --------- SAVE GDF ---------
 save = True
 if save:
-    bedmap.to_parquet("/media/maffe/sturellone/GPRCleanup/bedmap_raw_data.parquet", index=False)
+    bedmap.to_parquet("/media/maffe/sturellone/gprclean/bedmap_raw_data.parquet", index=False)
     print('SAVED.')
 
 print('ADDIO.')

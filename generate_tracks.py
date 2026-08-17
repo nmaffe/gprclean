@@ -18,7 +18,7 @@ import math
 
 # todo: I need to produce also self-connections between tracks, not just connections between different tracks
 t0 = time.time()
-bedmap = pd.read_parquet('/media/maffe/sturellone/GPRCleanup/bedmap_track_ids.parquet', engine='fastparquet')
+bedmap = pd.read_parquet('/media/maffe/sturellone/gprclean/bedmap_track_ids.parquet', engine='fastparquet')
 print(f'Parquet loaded in {time.time()-t0:.1f}')
 print(list(bedmap))
 print(bedmap.shape)
@@ -103,9 +103,12 @@ def compute_track_intersections(tracks_gdf):
 
                 elif isinstance(intersection, MultiPoint):
 
-                    ifplot = len(intersection.geoms)>1000
+                    ifplot = False#len(intersection.geoms)>1000
                     #ifplot = False
-                    #todo: this is a problem. many tracks lie on top of each other, resulting in many intersections
+                    # todo: why does NASA_2004_ICEBRIDGE_AIR_BM2.csv appears as both file_i and file_j .. are those self-crossing ?
+                    # todo: NASA_2004_ICEBRIDGE_AIR_BM2.csv NASA_2004_ICEBRIDGE_AIR_BM2.csv ?
+                    #   INGV_2003_Talos-Dome_AIR_BM3.csv INGV_2003_Talos-Dome_AIR_BM3.csv
+
                     if ifplot:
                         print(file_i, file_j, track_id_i, track_id_j, len(intersection.geoms))
                         fig, ax = plt.subplots()
@@ -147,10 +150,11 @@ print(intersections_gdf.geometry.geom_type.value_counts())
 # --------- PLOT ---------
 points = tracks_gdf[tracks_gdf.geometry.type == "Point"]
 lines = tracks_gdf[tracks_gdf.geometry.type == "LineString"]
+
 fig, ax = plt.subplots(figsize=(10, 8))
-#lines.plot(ax=ax, column="track_id", cmap="viridis", lw=1)
-#points.plot(ax=ax, color='b', markersize=5)
-sth = tracks_gdf.plot(ax=ax, column="track_id", cmap="jet", lw=1)
+##lines.plot(ax=ax, column="track_id", cmap="viridis", lw=1)
+##points.plot(ax=ax, color='b', markersize=5)
+#sth = tracks_gdf.plot(ax=ax, column="track_id", cmap="jet", lw=1)
 intersections_gdf.plot(ax=ax, color='k', markersize=5, zorder=3)
 plt.show()
 
