@@ -301,7 +301,8 @@ def reorder_index_optimized(df, step_size=50000):
     pbar.close()
     return df.iloc[path].reset_index(drop=True)
 
-bedmap_folder = f"/media/maffe/nvme/polar_ice_thickness_data/bedmap"
+#bedmap_folder = f"/media/maffe/nvme/polar_ice_thickness_data/bedmap"
+bedmap_folder = f"/media/maffe/sturellone/bedmap_individual_csv_files/bedmap"
 
 # Find all .csv files in the directory
 files_bedmap = [
@@ -563,7 +564,7 @@ bedmap = pd.DataFrame(bedmap_gdf.drop(columns='geometry'))
 #print(f"List of columns: {bedmap.info}")
 
 # --------- SAVE GDF ---------
-save = True
+save = False
 if save:
     bedmap.to_parquet("/media/maffe/sturellone/gprclean/bedmap_raw_data.parquet", index=False)
     print('SAVED.')
