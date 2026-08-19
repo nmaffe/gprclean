@@ -21,7 +21,7 @@ Bedmap data: https://essd.copernicus.org/articles/15/2695/2023/
 '''
 
 # todo: reorder_index_optimized would need to be optimized. The result applied to CRESIS_2009_Thwaites_AIR_BM3.csv
-#  is not really great.
+#  is not really great !
 
 def extract_time_coverage(filename):
     with open(filename, 'r', encoding='utf-8') as f:
